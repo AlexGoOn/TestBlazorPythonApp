@@ -9,7 +9,9 @@ def connect() -> pyodbc.Connection:
     connection_string = os.environ.get("SQL_CONNECTION_STRING")
     if not connection_string:
         raise RuntimeError("SQL_CONNECTION_STRING must be configured.")
-    return pyodbc.connect(connection_string, timeout=5)
+    return pyodbc.connect(
+        connection_string, timeout=int(os.environ.get("SQL_CONNECT_TIMEOUT", "5"))
+    )
 
 
 def ping() -> None:

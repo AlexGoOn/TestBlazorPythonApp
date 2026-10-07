@@ -1,0 +1,22 @@
+{
+  "APP_ID": "template",
+  "AZURE_ENV_NAME": "template-dev",
+  "AZURE_SUBSCRIPTION_ID": "09f8044f-9ae5-4de3-88c1-95cef11eb596",
+  "AZURE_TENANT_ID": "7cb14e74-eca8-490c-ba63-1de51bb33d33",
+  "AZURE_LOCATION": "westus3",
+  "AZURE_RESOURCE_GROUP": "rg-template-dev",
+  "AZURE_RESOURCE_NAME_SUFFIX": "ar061026",
+  "SHARED_RESOURCE_GROUP": "rg-shared",
+  "MONITORING_RESOURCE_GROUP": "rg-dx-monitoring",
+  "APP_INSIGHTS_NAME": "appi-dx-core",
+  "VNET_NAME": "dx-internal-vnet-dev",
+  "INTEGRATION_SUBNET_NAME": "snet-webapps",
+  "SQL_SERVER_NAME": "dx-sql-ar061026-dev",
+  "SQL_DATABASE_NAME": "pe-sql-template-dev",
+  "KEY_VAULT_NAME": "dx-kv-ar061026-dev",
+  "ENTRA_CLIENT_ID": "efffdf25-4ee4-4589-8dd1-e626a1078274",
+  "ENTRA_SECRET_NAME": "template-dev-entra-client-secret",
+  "APP_SERVICE_PLAN_NAME": "asp-template-dev",
+  "APP_SERVICE_PLAN_SKU": "B1",
+  "PYTHON_VERSION": "3.13"
+}

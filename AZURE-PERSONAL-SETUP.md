@@ -6,11 +6,12 @@
 App Service Plan B1, одна Azure SQL Database, частное подключение к базе,
 вход через Entra и подготовка доступа GitHub Actions.
 
-**Это не инструкция по запуску текущего Bicep без изменений.** Сейчас Bicep,
-`azure.yaml` и workflow всё ещё разворачивают корпоративный React/Functions-сценарий.
-Следующие шаги создают личную инфраструктуру вручную и фиксируют значения для
-будущей адаптации. Не запускай старый `azd up`, `azd provision` или
-`infra\setup-deploy-identity.sh` для этого стенда.
+Следующие шаги готовят общие ресурсы и права личного стенда вручную.
+Адаптированные Bicep, `azure.yaml` и workflow находятся рядом с этим документом,
+в `MyAppRepo\TestBlazorPythonApp`. После подготовки используй
+[инструкцию публикации в README](README.md#azure).
+Не запускай `azd` или `infra\setup-deploy-identity.sh` из **родительского**
+React/Functions-шаблона: он остаётся корпоративным и не используется здесь.
 
 ## Что получится
 
@@ -63,7 +64,7 @@ Resource groups и VNet можно назвать как в шаблоне. Им
 | Подсеть приложений | `snet-webapps` | Новая для App Service, не Functions |
 | Подсеть частных подключений | `snet-private-endpoints` | Новая |
 | SQL logical server | `dx-sql-ar061026-dev` | Вместо глобального `dx-sql-dev` |
-| SQL Database | `BlazorLab` | Совпадает с локальной базой |
+| SQL Database | `pe-sql-template-dev` | Совпадает с локальной базой |
 | SQL Private Endpoint | `pe-sql-template-dev` | Новый |
 | Private DNS zone | `privatelink.database.windows.net` | Стандартное имя Azure SQL |
 | App Service Plan | `asp-template-dev` | Новый общий план |
@@ -79,7 +80,7 @@ Resource groups и VNet можно назвать как в шаблоне. Им
 | Секрет регистрации входа | `template-dev-entra-client-secret` | Совпадает |
 | Identity деплоя GitHub | `dxazure-template-personal-deploy` | Новая, не общая корпоративная |
 
-В дальнейшем эти различия будут передаваться параметрами Bicep. Одними именами
+Эти различия передаются через `config.azure.json` и параметры Bicep. Одними именами
 в Portal нельзя исправить корпоративные ID и старые типы ресурсов в коде.
 
 Названия меню ниже приведены на английском. Чтобы повторять их буквально,
@@ -203,7 +204,7 @@ VNet integration требует совпадения региона сети и 
 |---|---|
 | Subscription | Личная подписка |
 | Resource group | `rg-shared` |
-| Database name | `BlazorLab` |
+| Database name | `pe-sql-template-dev` |
 | Server | `Create new` |
 
 5. В окне создания сервера:
@@ -509,7 +510,7 @@ Python-приложения, и зависимости из его `requirements
 | Server name | Фактическое `<SQL_SERVER>.database.windows.net` из шага 4 |
 | Authentication | `Microsoft Entra MFA` / интерактивный Entra-вход |
 | User | Entra-администратор SQL-сервера |
-| Database в Connection properties | `BlazorLab` |
+| Database в Connection properties | `pe-sql-template-dev` | (УЧТИ, что имя созданноый базы именно pe-sql-template-dev)
 | Encrypt | Включено |
 | Trust server certificate | Выключено |
 
@@ -517,12 +518,12 @@ Python-приложения, и зависимости из его `requirements
 Если домашний IP поменялся, обнови **только это** правило.
 
 1. Подключись.
-2. Выбери базу `BlazorLab` → **New Query**.
+2. Выбери базу `pe-sql-template-dev` → **New Query**.
 3. Открой в проекте `database\init.sql`.
 4. Скопируй **только блок от `IF OBJECT_ID(N'dbo.Notes', N'U') IS NULL`
    до соответствующего `END;`**.
-5. Выполни его в `BlazorLab`. Не выполняй здесь локальные `CREATE DATABASE`
-   и `USE BlazorLab`: облачная база уже создана.
+5. Выполни его в `pe-sql-template-dev`. Не выполняй здесь локальные `CREATE DATABASE`
+   и `USE pe-sql-template-dev`: облачная база уже создана.
 6. В той же базе выполни:
 
 ```sql
@@ -673,12 +674,10 @@ Driver={ODBC Driver 18 for SQL Server};Server=tcp:dx-sql-ar061026-dev.database.w
 Не копируй облаку `Integrated Security=True` или `Trusted_Connection=yes`
 из локального Windows-запуска.
 
-**Оставшийся prerequisite кода:** текущий Blazor использует
-`Microsoft.Data.SqlClient 7.1.1`, но ещё не содержит
-`Microsoft.Data.SqlClient.Extensions.Azure`. Для указанного managed identity
-режима нужен Azure extension совместимой версии; по документации он регистрирует
-провайдеры автоматически. Это нужно добавить и проверить перед облачным деплоем,
-а не пытаться исправить отсутствующий пакет действиями в Portal.
+Blazor содержит `Microsoft.Data.SqlClient.Extensions.Azure 7.1.1` для
+managed identity. Настройки из этой таблицы теперь задаёт Bicep; ручные app
+settings будут заменены при provision. Подключение обеих identities к SQL
+нужно проверить после публикации, а не только по успешной сборке.
 
 Python умеет использовать этот режим через ODBC, но в Linux-среде Web App
 должен быть установлен соответствующий **системный ODBC Driver**:
@@ -794,16 +793,15 @@ Python `/user` с Graph/OBO: такой функции у нового мини�
 
 ## Шаг 11. Подготовить OIDC GitHub без корпоративных прав
 
-Это подготовка на будущее. В отдельном `MyAppRepo` workflow пока нет.
-Старый `.github\workflows\deploy.yml` остался в родительском Azure-шаблоне:
-не копируй и **не включай** его.
+В этой папке есть новый `.github\workflows\deploy.yml` для Blazor/Python.
+Старый workflow из родительского React-шаблона не копируй и не включай.
 
 В личном GitHub-репозитории:
 
-1. Открой **Actions → Deploy → меню с тремя точками → Disable workflow**,
-   если старый workflow уже присутствует.
+1. Если скопирован старый React workflow, отключи его через
+   **Actions → Deploy → меню с тремя точками → Disable workflow**.
 2. Используй личный репозиторий, не корпоративный. Загружай содержимое
-   `MyAppRepo`, а не родительскую папку Azure-шаблона. Команды первой загрузки
+   `MyAppRepo\TestBlazorPythonApp`, а не родительскую папку Azure-шаблона. Команды первой загрузки
    приведены в `README.md` рядом с этой инструкцией.
 3. Подготовь ветку `dev`.
 
@@ -848,12 +846,12 @@ Python `/user` с Graph/OBO: такой функции у нового мини�
 6. На `rg-shared` аналогично назначь только **Reader**.
 7. На `rg-dx-monitoring` назначь **Reader**, если будущий деплой читает её ресурсы.
 
-Этого достаточно не для любого Bicep, а для ограниченного сценария:
-общая сеть, роли, SQL-пользователи и регистрации заранее настроены администратором.
-Если будущий Bicep повторно назначает VNet integration, ему дополнительно
-понадобятся права чтения/join нужной подсети. Если он меняет общую инфраструктуру,
-потребуются соответствующие отдельные права. Их нужно определить при адаптации,
-а не выдавать заранее Owner всей подписки.
+Новый Bicep работает на scope группы приложения и не изменяет общие ресурсы.
+Помимо этих ролей, администратор должен назначить deploy identity
+`Microsoft.Network/virtualNetworks/subnets/join/action` на `snet-webapps`
+через ограниченную custom role: шаблон задаёт VNet integration обоих Web App.
+Reader на `rg-shared` обеспечивает чтение, но не join. SQL-пользователи,
+Key Vault-роли и регистрация входа остаются подготовкой администратора.
 
 Не назначай этому deploy identity:
 
@@ -873,9 +871,12 @@ Contributor группы позволяет менять и удалять со�
 | `AZURE_TENANT_ID` | `PERSONAL_TENANT_ID` |
 | `AZURE_SUBSCRIPTION_ID` | `PERSONAL_SUBSCRIPTION_ID` |
 
-Можно хранить их как repository secrets; это идентификаторы, не SQL-пароль.
-Их добавление **не переопределяет** hardcoded env в существующем `deploy.yml`.
-При адаптации workflow должен явно читать эти значения.
+Храни их как repository secrets; это идентификаторы, не SQL-пароль.
+Новый workflow явно читает эти secrets. Дополнительно создай repository
+variable `AZURE_CONFIG_JSON` с заполненным профилем
+`infra\config.personal.example.json`, как описано в README.
+Для `main` используются отдельные `PROD_AZURE_*` secrets и
+`PROD_AZURE_CONFIG_JSON`; без них production-деплой не выполняется.
 
 ## Шаг 12. Зафиксировать настройки и проверить после адаптации деплоя
 
@@ -884,26 +885,26 @@ Contributor группы позволяет менять и удалять со�
 После шагов 1–11 в Portal есть сеть, база, DNS, два пустых Web App на одном плане,
 identities, SQL-права, Key Vault, мониторинг, Entra-вход и доверие GitHub.
 
-**Полный облачный запуск ещё не проверен.** В рамках этой инструкции код и Bicep
-не изменяются. Перед публикацией необходимо:
+**Полный облачный запуск нужно проверить в своём аккаунте.**
+Адаптация реализована в шаблоне рядом с этим документом:
 
 | Что адаптировать | Зачем |
 |---|---|
-| Bicep из родительского шаблона, если нужен IaC | Адаптировать до переноса: один Linux B1-план, два Web App, личные IDs, SQL/Key Vault и подсеть |
-| `azure.yaml`, если нужен azd | Добавить конфигурацию .NET/App Service и Python/App Service; старый файл не переносился |
-| `.github\workflows\deploy.yml` | Создать для двух Web App с личными OIDC-параметрами; старый workflow не переносился |
-| Entra hooks | Не создавать SPA redirect URI и не раздавать Graph-права для этой схемы |
-| .NET SQL dependencies | Добавить Azure extension для managed identity |
-| Python runtime | Проверить системный ODBC Driver и установку зависимостей |
-| Телеметрия | Подключить сбор .NET/Python, а не только создать Application Insights |
-| Миграции базы | Запуск из разрешённой сети или отдельно администратором |
+| `infra` | AVM: один Linux-план, два Web App, identities; общие ресурсы читаются |
+| `azure.yaml` | .NET/App Service и Python/App Service |
+| `.github\workflows\deploy.yml` | OIDC, dev/main, настройки аккаунтов вне исходников |
+| Hooks | Проверка Azure context, сети, Key Vault reference и закрытого анонимного доступа; без Graph write |
+| .NET SQL dependencies | Совместимый Azure extension добавлен |
+| Python runtime | Startup проверяет ODBC Driver 18 и обязательные cloud settings |
+| Телеметрия | SDK подключены в обоих приложениях, разные service names |
+| Миграции базы | `database\azure-init.sql`, отдельно администратором из разрешённой сети |
 
 Обычный GitHub-hosted runner не находится в твоей VNet.
 Azure login позволяет ему управлять Azure, но не подключает его к частному SQL.
 Публиковать код в Web App он сможет при доступном SCM; выполнять SQL-миграции
 через закрытый сервер — нет без отдельной сетевой схемы.
 
-При будущем деплое должны публиковаться:
+При деплое публикуются:
 
 - результат `dotnet publish` проекта `src\blazor`;
 - содержимое `src\backend` с `web_app.py` и `requirements.txt` в корне Python-пакета,
@@ -959,7 +960,7 @@ python -c "import socket; print(socket.gethostbyname('dx-sql-ar061026-dev.databa
 | Region | Выбранный общий регион |
 | Фактический уникальный суффикс | Твой выбор вместо `ar061026` |
 | SQL Server FQDN | SQL server → Overview |
-| SQL Database | `BlazorLab` |
+| SQL Database | `pe-sql-template-dev` |
 | VNet/subnet resource ID | VNet/subnet → Properties/JSON View |
 | BLAZOR_HOST / PYTHON_HOST | Web App → Overview → Default domain |
 | Client ID и Resource ID обеих managed identities | Managed Identities → Overview/Properties |
@@ -991,7 +992,9 @@ Blazor нужно тестировать отдельно: личный стен
 Ручная подготовка помогает понять Azure. Чтобы деплой стал воспроизводимым,
 после неё нужно перенести необходимые настройки в Bicep и проверить создание
 нового окружения без ручных исправлений. Для Bicep этого репозитория используются
-Azure Verified Modules; имена вложенных deployments должны отличаться.
+Azure Verified Modules; имена вложенных deployments отличаются.
+Публикация и автоматизированная проверка через браузер:
+[README → Azure](README.md#azure).
 
 ## Как остановить расходы
 

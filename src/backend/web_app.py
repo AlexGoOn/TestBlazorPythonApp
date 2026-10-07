@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import pyodbc
@@ -19,6 +20,13 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Blazor Python service", lifespan=lifespan)
+
+if os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"):
+    from azure.monitor.opentelemetry import configure_azure_monitor
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+    configure_azure_monitor(instrumentation_options={"fastapi": {"enabled": False}})
+    FastAPIInstrumentor.instrument_app(app)
 
 
 class NoteInput(BaseModel):

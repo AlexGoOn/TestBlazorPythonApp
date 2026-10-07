@@ -1,0 +1,92 @@
+name: Deploy
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - "infra/**"
+      - "src/**"
+      - "scripts/configure-azure.ps1"
+      - "azure.yaml"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref_name == 'dev' || github.ref_name == 'main'
+    name: Deploy to ${{ github.ref_name == 'main' && 'Production' || 'Sandbox' }}
+    runs-on: ubuntu-latest
+    env:
+      AZURE_CLIENT_ID: ${{ github.ref_name == 'main' && secrets.PROD_AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ github.ref_name == 'main' && secrets.PROD_AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ github.ref_name == 'main' && secrets.PROD_AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CONFIG_JSON: ${{ github.ref_name == 'main' && vars.PROD_AZURE_CONFIG_JSON || vars.AZURE_CONFIG_JSON }}
+      PROD_CLIENT_ID: ${{ secrets.PROD_AZURE_CLIENT_ID }}
+      PROD_TENANT_ID: ${{ secrets.PROD_AZURE_TENANT_ID }}
+      PROD_SUBSCRIPTION_ID: ${{ secrets.PROD_AZURE_SUBSCRIPTION_ID }}
+      PROD_CONFIG_JSON: ${{ vars.PROD_AZURE_CONFIG_JSON }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install azd
+        uses: Azure/setup-azd@v2
+
+      - name: Configure environment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_REF_NAME -eq 'main') {
+            foreach ($name in @('PROD_CLIENT_ID', 'PROD_TENANT_ID', 'PROD_SUBSCRIPTION_ID', 'PROD_CONFIG_JSON')) {
+              if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+                throw "Production deployment requires $name. Falling back to personal/dev settings is forbidden."
+              }
+            }
+          }
+          foreach ($name in @('AZURE_CLIENT_ID', 'AZURE_TENANT_ID', 'AZURE_SUBSCRIPTION_ID', 'AZURE_CONFIG_JSON')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Missing GitHub configuration: $name"
+            }
+          }
+          $path = Join-Path $env:RUNNER_TEMP 'azure-config.json'
+          $env:AZURE_CONFIG_JSON | Set-Content -LiteralPath $path
+          ./scripts/configure-azure.ps1 -ConfigPath $path -GitHubActions
+
+      - name: Log in to azd (OIDC)
+        run: |
+          azd auth login --client-id "$AZURE_CLIENT_ID" \
+            --federated-credential-provider github --tenant-id "$AZURE_TENANT_ID"
+
+      - name: Log in to Azure CLI (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Provision infrastructure
+        run: azd provision --no-prompt --no-state
+
+      - name: Deploy Python
+        run: azd deploy backend --no-prompt
+
+      - name: Deploy Blazor
+        run: azd deploy frontend --no-prompt

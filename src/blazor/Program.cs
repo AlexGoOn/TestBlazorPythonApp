@@ -1,9 +1,19 @@
 using BlazorApp.Components;
 using BlazorApp.Data;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Data.SqlClient;
+using OpenTelemetry.Resources;
 
 var builder = WebApplication.CreateBuilder(args);
+
+if (!string.IsNullOrWhiteSpace(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+{
+    builder.Services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource.AddService(
+            builder.Configuration["OTEL_SERVICE_NAME"] ?? "blazor"))
+        .UseAzureMonitor();
+}
 
 var connectionString = builder.Configuration.GetConnectionString("Sql")
     ?? throw new InvalidOperationException("ConnectionStrings:Sql must be configured.");

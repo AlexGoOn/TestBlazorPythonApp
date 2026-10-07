@@ -49,6 +49,9 @@ local.settings.json
 
 # Azure Developer CLI
 .azure/
+config.azure.json
+.local/
+*.auth.json
 
 # OS
 .DS_Store

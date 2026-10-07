@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+name: dxazure-blazor-python
+resourceGroup: ${AZURE_RESOURCE_GROUP}
+metadata:
+  template: dxazure-blazor-python
+workflows:
+  up:
+    steps:
+      - azd: provision
+      - azd: deploy backend
+      - azd: deploy frontend
+hooks:
+  preprovision:
+    shell: pwsh
+    run: ./infra/hooks/preprovision.ps1
+  postprovision:
+    shell: pwsh
+    run: ./infra/hooks/postprovision.ps1
+  postdeploy:
+    shell: pwsh
+    run: ./infra/hooks/postdeploy.ps1
+services:
+  backend:
+    project: ./src/backend
+    language: py
+    host: appservice
+    resourceName: ${AZURE_BACKEND_NAME}
+  frontend:
+    project: ./src/blazor
+    language: dotnet
+    host: appservice
+    resourceName: ${AZURE_FRONTEND_NAME}
