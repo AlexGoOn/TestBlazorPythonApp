@@ -1,0 +1,114 @@
+@page "/"
+@using BlazorApp.Data
+@using Microsoft.Data.SqlClient
+@inject NotesStore Store
+@inject PythonService Python
+@inject ILogger<Home> Logger
+
+<PageTitle>Blazor + Python + SQL Server</PageTitle>
+
+<main>
+    <h1>Blazor + Python + SQL Server</h1>
+    <p>Both applications read and write the same SQL table. Python calls run on the Blazor server.</p>
+
+    <label for="note-text">Note text (up to 200 characters)</label>
+    <input id="note-text" @bind="text" maxlength="200" disabled="@(!interactive || busy)" />
+    <div class="actions">
+        <button @onclick="() => AddAsync(false)" disabled="@(!interactive || busy)">Save with Blazor</button>
+        <button @onclick="() => AddAsync(true)" disabled="@(!interactive || busy)">Save with Python</button>
+        <button @onclick="RefreshAsync" disabled="@(!interactive || busy)">Refresh both lists</button>
+    </div>
+
+    @if (error is not null)
+    {
+        <p role="alert">@error</p>
+    }
+    @if (notice is not null)
+    {
+        <p role="status">@notice</p>
+    }
+
+    @foreach (var list in new[] { (Title: "Read by Blazor", Notes: blazorNotes), (Title: "Read by Python", Notes: pythonNotes) })
+    {
+        <section aria-label="@list.Title">
+            <h2>@list.Title</h2>
+            @if (list.Notes.Count == 0)
+            {
+                <p>No notes loaded.</p>
+            }
+            <ul>
+                @foreach (var note in list.Notes)
+                {
+                    <li @key="note.Id">
+                        <strong>@note.Text</strong> - @note.CreatedBy
+                        <time datetime="@note.CreatedAt.ToString("O")">@note.CreatedAt.ToString("u")</time>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+</main>
+
+@code {
+    private string text = "";
+    private string? error;
+    private string? notice;
+    private bool busy;
+    private bool interactive;
+    private IReadOnlyList<Note> blazorNotes = [];
+    private IReadOnlyList<Note> pythonNotes = [];
+
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            interactive = true;
+            StateHasChanged();
+        }
+    }
+
+    private Task RefreshAsync() => ExecuteAsync(LoadAsync);
+
+    private Task AddAsync(bool usePython) => ExecuteAsync(async () =>
+    {
+        var input = new NoteInput(text);
+        var note = usePython ? await Python.CreateAsync(input) : await Store.CreateAsync(input);
+        text = "";
+        notice = $"Saved by {note.CreatedBy}.";
+        await LoadAsync();
+    });
+
+    private async Task LoadAsync()
+    {
+        blazorNotes = await Store.ListAsync();
+        pythonNotes = await Python.ListAsync();
+    }
+
+    private async Task ExecuteAsync(Func<Task> operation)
+    {
+        busy = true;
+        error = null;
+        notice = null;
+        try
+        {
+            await operation();
+        }
+        catch (ArgumentException exception)
+        {
+            Logger.LogWarning(exception, "Invalid note input");
+            error = exception.Message;
+        }
+        catch (Exception exception) when (exception is SqlException or HttpRequestException
+            or OperationCanceledException or InvalidOperationException)
+        {
+            Logger.LogError(exception, "Note operation failed");
+            error = "The operation failed. Check SQL Server, the Python service, and application logs.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

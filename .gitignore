@@ -1,0 +1,55 @@
+# Azure Functions
+
+.python_packages/
+__azurite_db*__.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+*_env/
+
+# .NET
+**/bin/
+**/obj/
+
+# IDE
+.idea/
+.vs/
+*.user
+*.swp
+*.swo
+*~
+local.settings.json
+
+# Azure Developer CLI
+.azure/
+
+# OS
+.DS_Store
+Thumbs.db

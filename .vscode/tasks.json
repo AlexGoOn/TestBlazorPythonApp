@@ -1,0 +1,28 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Blazor (local SQL)",
+      "type": "shell",
+      "command": ". '${workspaceFolder}\\scripts\\configure-local.ps1'; if ($?) { dotnet run --project '${workspaceFolder}\\src\\blazor' --launch-profile http }",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Start Python service (local SQL)",
+      "type": "shell",
+      "command": ". '${workspaceFolder}\\scripts\\configure-local.ps1'; if ($?) { & '${workspaceFolder}\\.venv\\Scripts\\python.exe' -m uvicorn web_app:app --app-dir '${workspaceFolder}\\src\\backend' --host 127.0.0.1 --port 3200 }",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Test Blazor + Python + SQL",
+      "type": "shell",
+      "command": ". '${workspaceFolder}\\scripts\\configure-local.ps1'; if ($?) { & '${workspaceFolder}\\.venv\\Scripts\\python.exe' '${workspaceFolder}\\tests\\test_local_stack.py' -v }",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+exclude = "(\\.venv|bin|obj)"
+
+[tool.isort]
+profile = "black"
+line_length = 120
+src_paths = ["src/backend"]
+skip_glob = [".venv/*"]

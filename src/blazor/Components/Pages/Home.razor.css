@@ -1,0 +1,9 @@
+main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; }
+label { display: block; margin-bottom: .5rem; }
+input { box-sizing: border-box; width: 100%; padding: .6rem; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+button { padding: .6rem 1rem; }
+section { margin-top: 2rem; }
+li { margin: .6rem 0; overflow-wrap: anywhere; }
+time { display: block; color: #555; font-size: .85rem; }
+[role="alert"] { color: #a00; }
