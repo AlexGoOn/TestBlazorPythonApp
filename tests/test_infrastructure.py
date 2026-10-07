@@ -49,6 +49,11 @@ class InfrastructureTests(unittest.TestCase):
             self.assertFalse(any(entry["type"] == resource_type and not entry.get("existing")
                                  for entry in self.entries))
 
+    def test_web_apps_have_distinct_azd_service_tags(self):
+        for service in ("backend", "frontend"):
+            parameters = self.module_parameters(f"application-{service}")
+            self.assertIn(f"'azd-service-name', '{service}'", parameters["tags"])
+
     def test_python_allows_only_the_integration_subnet(self):
         backend = self.module_parameters("backend-webapp-avm")
         site = backend["siteConfig"]

@@ -21,12 +21,10 @@ services:
     project: ./src/backend
     language: py
     host: appservice
-    resourceName: ${AZURE_BACKEND_NAME}
   frontend:
     project: ./src/blazor
     language: dotnet
     host: appservice
-    resourceName: ${AZURE_FRONTEND_NAME}
     hooks:
       postdeploy:
         shell: pwsh

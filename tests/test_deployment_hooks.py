@@ -71,6 +71,9 @@ class DeploymentHookTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.server.paths, ["/frontend/", "/backend/notes"])
 
+    def test_service_discovery_does_not_use_untyped_resource_name_lookup(self):
+        self.assertNotIn("resourceName:", (ROOT / "azure.yaml").read_text(encoding="utf-8"))
+
     def test_exposed_python_is_rejected(self):
         self.server.responses["/backend/notes"] = (200, None)
         result = self.run_hook()

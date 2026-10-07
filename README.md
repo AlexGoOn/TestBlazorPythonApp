@@ -79,6 +79,10 @@ Blazor также читает секрет входа из Key Vault. В Azure 
 `ASPNETCORE_ENVIRONMENT=Production`: локальные `/api/*` не публикуются.
 Application Insights получает разные service names для Blazor и Python.
 
+`azd` находит Web App по тегам `azd-service-name: frontend/backend`, которые
+задаёт Bicep. Явный `resourceName` не используется: поиск только по имени
+может совпасть с одноимённым ресурсом другого типа в той же группе.
+
 ### Однократная подготовка
 
 Дополнительно к шагам личной настройки нужны Azure CLI, Azure Developer CLI
