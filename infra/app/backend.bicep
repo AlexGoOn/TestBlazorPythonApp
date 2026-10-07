@@ -50,6 +50,13 @@ module site 'br/public:avm/res/web/site:0.24.0' = {
     ]
     configs: [
       {
+        name: 'logs'
+        properties: {
+          applicationLogs: { fileSystem: { level: 'Information' } }
+          httpLogs: { fileSystem: { enabled: true, retentionInMb: 35, retentionInDays: 3 } }
+        }
+      }
+      {
         name: 'appsettings'
         retainCurrentAppSettings: false
         properties: {

@@ -16,9 +16,6 @@ hooks:
   postprovision:
     shell: pwsh
     run: ./infra/hooks/postprovision.ps1
-  postdeploy:
-    shell: pwsh
-    run: ./infra/hooks/postdeploy.ps1
 services:
   backend:
     project: ./src/backend
@@ -30,3 +27,7 @@ services:
     language: dotnet
     host: appservice
     resourceName: ${AZURE_FRONTEND_NAME}
+    hooks:
+      postdeploy:
+        shell: pwsh
+        run: ../../infra/hooks/postdeploy.ps1

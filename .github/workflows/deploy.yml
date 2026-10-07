@@ -86,7 +86,21 @@ jobs:
         run: azd provision --no-prompt --no-state
 
       - name: Deploy Python
+        id: deploy_backend
         run: azd deploy backend --no-prompt
 
+      - name: Python startup logs
+        if: always() && steps.deploy_backend.outcome != 'skipped'
+        continue-on-error: true
+        shell: pwsh
+        run: ./infra/hooks/runtime-logs.ps1 -Service backend
+
       - name: Deploy Blazor
+        id: deploy_frontend
         run: azd deploy frontend --no-prompt
+
+      - name: Blazor startup logs
+        if: always() && steps.deploy_frontend.outcome != 'skipped'
+        continue-on-error: true
+        shell: pwsh
+        run: ./infra/hooks/runtime-logs.ps1 -Service frontend
