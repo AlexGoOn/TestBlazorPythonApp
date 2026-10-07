@@ -2,29 +2,47 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit
 from uuid import uuid4
 
 import requests
-from playwright.sync_api import expect, sync_playwright
+
+
+def check_anonymous_access(blazor: str, python: str, authority: str) -> None:
+    response = requests.get(
+        blazor, headers={"User-Agent": "Mozilla/5.0", "Accept": "text/html"},
+        allow_redirects=False, timeout=30,
+    )
+    login = urlsplit(urljoin(blazor, response.headers.get("Location", "")))
+    allowed = {
+        urlsplit(urljoin(blazor, "/.auth/login/aad"))[:3],
+        urlsplit(f"{authority.rstrip('/')}/oauth2/v2.0/authorize")[:3],
+    }
+    if response.status_code != 302 or login[:3] not in allowed:
+        raise AssertionError(
+            f"Anonymous Blazor access must redirect to Easy Auth or the configured Entra tenant; "
+            f"got {response.status_code}."
+        )
+    response = requests.get(f"{python}/notes", allow_redirects=False, timeout=30)
+    if response.status_code != 403:
+        raise AssertionError(f"Public Python access must return 403, got {response.status_code}.")
 
 
 def main() -> None:
+    from playwright.sync_api import expect, sync_playwright
+
     parser = argparse.ArgumentParser(description="Verify the protected Azure stack after deployment.")
     parser.add_argument("--login", action="store_true", help="Save an interactive Easy Auth session.")
     parser.add_argument("--state", default=".local/azure.auth.json")
     args = parser.parse_args()
     blazor = os.environ["APP_WEB_URL"].rstrip("/")
     python = os.environ["APP_API_URL"].rstrip("/")
-    for url in (blazor, python):
+    authority = os.environ["ENTRA_AUTHORITY_URL"].rstrip("/")
+    for url in (blazor, python, authority):
         if not url.startswith("https://"):
             raise ValueError("Azure test URLs must use HTTPS.")
 
-    response = requests.get(blazor, allow_redirects=False, timeout=30)
-    if response.status_code != 302 or "/.auth/login/aad" not in response.headers.get("Location", ""):
-        raise AssertionError("Anonymous Blazor access must redirect to Easy Auth.")
-    response = requests.get(f"{python}/notes", allow_redirects=False, timeout=30)
-    if response.status_code != 403:
-        raise AssertionError(f"Public Python access must return 403, got {response.status_code}.")
+    check_anonymous_access(blazor, python, authority)
 
     state = Path(args.state)
     with sync_playwright() as playwright:

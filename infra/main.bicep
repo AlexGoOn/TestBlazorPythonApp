@@ -129,6 +129,7 @@ output AZURE_BACKEND_NAME string = backendName
 output APP_WEB_URL string = frontend.outputs.url
 output APP_API_URL string = backend.outputs.url
 output ENTRA_CALLBACK_URL string = '${frontend.outputs.url}/.auth/login/aad/callback'
+output ENTRA_AUTHORITY_URL string = uri(environment().authentication.loginEndpoint, '${tenant().tenantId}/')
 output FRONTEND_IDENTITY_PRINCIPAL_ID string = frontendIdentity.outputs.principalId
 output BACKEND_IDENTITY_PRINCIPAL_ID string = backendIdentity.outputs.principalId
 output FRONTEND_IDENTITY_RESOURCE_ID string = frontendIdentity.outputs.resourceId

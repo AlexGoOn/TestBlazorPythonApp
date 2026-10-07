@@ -203,7 +203,11 @@ SCM-правила; здесь не создаётся обход этих ог�
 ### Проверка после публикации
 
 Проверка закрытия анонимного доступа выполняется после публикации **Blazor**,
-а не между публикациями Python и Blazor. Она **не доказывает работу базы**
+а не между публикациями Python и Blazor. Запрос имитирует браузер и требует
+`302` на Easy Auth этого сайта либо на Microsoft Entra настроенного tenant;
+для клиента без браузерного User-Agent Easy Auth может вернуть `401`.
+`ENTRA_AUTHORITY_URL` формируется Bicep, добавлять его в JSON не нужно.
+Эта проверка **не доказывает работу базы**
 или успешный запуск Python. Actions отдельно выводит шаги `Python startup logs`
 и `Blazor startup logs`, включая случаи неудачного деплоя. Ошибка чтения логов
 помечается предупреждением и не заменяет результат деплоя.
@@ -212,6 +216,7 @@ SCM-правила; здесь не создаётся обход этих ог�
 ```powershell
 $env:APP_WEB_URL = azd env get-value APP_WEB_URL
 $env:APP_API_URL = azd env get-value APP_API_URL
+$env:ENTRA_AUTHORITY_URL = azd env get-value ENTRA_AUTHORITY_URL
 .\.venv\Scripts\python.exe .\tests\test_azure_stack.py --login
 .\.venv\Scripts\python.exe .\tests\test_azure_stack.py
 ```

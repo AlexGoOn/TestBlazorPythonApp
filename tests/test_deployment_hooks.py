@@ -7,15 +7,21 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import Mock, patch
+
+from test_azure_stack import check_anonymous_access
 
 ROOT = Path(__file__).resolve().parents[1]
 PWSH = shutil.which("pwsh")
 AZD = os.environ.get("AZD_EXE") or shutil.which("azd")
+AUTHORITY = "https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111/"
+AUTHORIZE = f"{AUTHORITY}oauth2/v2.0/authorize"
 
 
 class AccessHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.server.paths.append(self.path)
+        self.server.request_headers[self.path] = self.headers
         status, location = self.server.responses[self.path]
         self.send_response(status)
         if location:
@@ -44,6 +50,7 @@ class DeploymentHookTests(unittest.TestCase):
 
     def setUp(self):
         self.server.paths = []
+        self.server.request_headers = {}
         self.server.responses = {
             "/frontend/": (302, "/.auth/login/aad"),
             "/backend/notes": (403, None),
@@ -53,6 +60,7 @@ class DeploymentHookTests(unittest.TestCase):
         values = json.dumps({
             "APP_WEB_URL": web_url or f"{self.base}/frontend",
             "APP_API_URL": f"{self.base}/backend",
+            "ENTRA_AUTHORITY_URL": AUTHORITY,
         }).replace("'", "''")
         script = str(ROOT / "infra" / "hooks" / "postdeploy.ps1").replace("'", "''")
         command = (
@@ -70,6 +78,35 @@ class DeploymentHookTests(unittest.TestCase):
         result = self.run_hook()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.server.paths, ["/frontend/", "/backend/notes"])
+        headers = self.server.request_headers["/frontend/"]
+        self.assertEqual(headers.get("User-Agent"), "Mozilla/5.0")
+        self.assertEqual(headers.get("Accept"), "text/html")
+
+    def test_direct_entra_redirect_is_accepted(self):
+        self.server.responses["/frontend/"] = (302, f"{AUTHORIZE}?client_id=test")
+        result = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_untrusted_login_redirects_are_rejected(self):
+        for location in (
+            "https://untrusted.example/.auth/login/aad",
+            "https://login.microsoftonline.com/other-tenant/oauth2/v2.0/authorize",
+            f"{AUTHORIZE}.invalid",
+            None,
+        ):
+            with self.subTest(location=location):
+                self.server.responses["/frontend/"] = (302, location)
+                result = self.run_hook()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("did not redirect to Easy Auth", result.stderr)
+
+    def test_browser_probe_requires_login_redirect(self):
+        for status in (200, 401, 403, 500):
+            with self.subTest(status=status):
+                self.server.responses["/frontend/"] = (status, None)
+                result = self.run_hook()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"expected 302, got {status}", result.stderr)
 
     def test_service_discovery_does_not_use_untyped_resource_name_lookup(self):
         self.assertNotIn("resourceName:", (ROOT / "azure.yaml").read_text(encoding="utf-8"))
@@ -115,6 +152,7 @@ class DeploymentHookTests(unittest.TestCase):
                  "11111111-1111-1111-1111-111111111111", "--location", "westus3"],
                 ["env", "set", "AZURE_RESOURCE_GROUP=rg-hook-test",
                  "AZURE_FRONTEND_NAME=frontend", "AZURE_BACKEND_NAME=backend",
+                 f"ENTRA_AUTHORITY_URL={AUTHORITY}",
                  f"APP_WEB_URL={self.base}/frontend", f"APP_API_URL={self.base}/backend"],
                 ["hooks", "run", "postdeploy", "--service", "backend"],
                 ["hooks", "run", "postdeploy", "--service", "frontend"],
@@ -128,6 +166,42 @@ class DeploymentHookTests(unittest.TestCase):
                 if index == 2:
                     self.assertEqual(self.server.paths, [], "Backend hook checked unpublished Blazor.")
             self.assertEqual(self.server.paths, ["/frontend/", "/backend/notes"])
+
+
+class AzureBrowserProbeTests(unittest.TestCase):
+    def run_probe(self, status=302, location="/.auth/login/aad", backend_status=403):
+        frontend = Mock(status_code=status, headers={"Location": location} if location else {})
+        backend = Mock(status_code=backend_status)
+        with patch("test_azure_stack.requests.get", side_effect=[frontend, backend]) as get:
+            check_anonymous_access("https://frontend.example", "https://backend.example", AUTHORITY)
+        return get
+
+    def test_browser_headers_and_trusted_redirects(self):
+        for location in ("/.auth/login/aad", "https://frontend.example/.auth/login/aad",
+                         f"{AUTHORIZE}?client_id=test"):
+            with self.subTest(location=location):
+                get = self.run_probe(location=location)
+                self.assertEqual(
+                    get.call_args_list[0].kwargs["headers"],
+                    {"User-Agent": "Mozilla/5.0", "Accept": "text/html"},
+                )
+                self.assertFalse(get.call_args_list[0].kwargs["allow_redirects"])
+
+    def test_untrusted_or_missing_redirect_is_rejected(self):
+        for location in ("https://untrusted.example/.auth/login/aad", None,
+                         "https://login.microsoftonline.com/other-tenant/oauth2/v2.0/authorize",
+                         f"{AUTHORIZE}.invalid"):
+            with self.subTest(location=location), self.assertRaisesRegex(AssertionError, "must redirect"):
+                self.run_probe(location=location)
+
+    def test_frontend_without_login_redirect_is_rejected(self):
+        for status in (200, 401, 403, 500):
+            with self.subTest(status=status), self.assertRaisesRegex(AssertionError, f"got {status}"):
+                self.run_probe(status=status, location=None)
+
+    def test_exposed_backend_is_rejected(self):
+        with self.assertRaisesRegex(AssertionError, "must return 403, got 200"):
+            self.run_probe(backend_status=200)
 
 
 if __name__ == "__main__":

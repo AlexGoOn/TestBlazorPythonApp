@@ -1,10 +1,21 @@
 . (Join-Path $PSScriptRoot 'common.ps1')
 Import-AzdEnvironment
 
+if ([string]::IsNullOrWhiteSpace($env:ENTRA_AUTHORITY_URL)) {
+    throw 'ENTRA_AUTHORITY_URL is missing. Run azd provision with the current template before deploying frontend.'
+}
+$frontendUri = [Uri] "$env:APP_WEB_URL/"
+$allowedLoginTargets = @(
+    "$($frontendUri.GetLeftPart([UriPartial]::Authority))/.auth/login/aad",
+    "$($env:ENTRA_AUTHORITY_URL.TrimEnd('/'))/oauth2/v2.0/authorize"
+)
+
 $client = [System.Net.Http.HttpClient]::new(
     [System.Net.Http.HttpClientHandler] @{ AllowAutoRedirect = $false }
 )
 $client.Timeout = [TimeSpan]::FromSeconds(30)
+$client.DefaultRequestHeaders.UserAgent.ParseAdd('Mozilla/5.0')
+$client.DefaultRequestHeaders.Accept.ParseAdd('text/html')
 try {
     foreach ($probe in @(
         @{ Url = "$env:APP_WEB_URL/"; Status = 302 },
@@ -20,9 +31,14 @@ try {
             if ([int] $response.StatusCode -ne $probe.Status) {
                 throw "Cloud access check failed for $($probe.Url): expected $($probe.Status), got $([int] $response.StatusCode)."
             }
-            if ($probe.Status -eq 302 -and
-                $response.Headers.Location.OriginalString -notmatch '/\.auth/login/aad') {
-                throw 'Blazor did not redirect to Easy Auth.'
+            if ($probe.Status -eq 302) {
+                if ($null -eq $response.Headers.Location) {
+                    throw 'Blazor did not redirect to Easy Auth: missing Location header.'
+                }
+                $loginUri = [Uri]::new($frontendUri, $response.Headers.Location)
+                if ($loginUri.GetLeftPart([UriPartial]::Path) -notin $allowedLoginTargets) {
+                    throw 'Blazor did not redirect to Easy Auth or the configured Entra tenant.'
+                }
             }
         } finally {
             $response.Dispose()
