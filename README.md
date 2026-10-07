@@ -87,11 +87,24 @@ Application Insights получает разные service names для Blazor �
 GitHub не запускает workflow, оставленный внутри вложенной папки.
 
 Deploy identity нужны Contributor на группе приложения, Reader на общих
-ресурсах/мониторинге и `Microsoft.Network/virtualNetworks/subnets/join/action`
-на конкретной подсети `snet-webapps`. Последнее назначает администратор через
-ограниченную custom role; Reader сам по себе не позволяет подключать Web App
-к VNet. Для GitHub Environment job не настроен: сохраняется OIDC subject ветки,
+ресурсах/мониторинге и два действия на конкретной подсети `snet-webapps`:
+`Microsoft.Network/virtualNetworks/subnets/join/action` для VNet integration и
+`Microsoft.Network/virtualNetworks/subnets/joinViaServiceEndpoint/action`
+для правила доступа к Python через service endpoint. Их назначает администратор
+через ограниченную custom role; Reader сам по себе недостаточен.
+Для GitHub Environment job не настроен: сохраняется OIDC subject ветки,
 как в инструкции. Для `main` нужна отдельная federated credential.
+
+Если роль `TestBlazorPythonApp Subnet Join` уже создана только с `join/action`,
+администратор обновляет её под своей учётной записью в целевой подписке:
+
+```powershell
+.\scripts\update-subnet-deploy-role.ps1 -SubscriptionId "<subscription-id>"
+```
+
+Скрипт сохраняет ID роли, существующие права, scopes и назначения. После
+распространения RBAC повтори GitHub **Deploy → Re-run failed jobs**;
+пересоздавать ресурсы или добавлять deploy identity Owner на подписку не нужно.
 
 **Важное отличие от оригинала:** `main.bicep` имеет scope `resourceGroup`,
 а не `subscription`. Группа приложения должна уже существовать. Поэтому CI

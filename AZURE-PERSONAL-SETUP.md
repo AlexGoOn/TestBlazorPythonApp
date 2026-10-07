@@ -67,7 +67,7 @@ Resource groups и VNet можно назвать как в шаблоне. Им
 | SQL Database | `pe-sql-template-dev` | Совпадает с локальной базой |
 | SQL Private Endpoint | `pe-sql-template-dev` | Новый |
 | Private DNS zone | `privatelink.database.windows.net` | Стандартное имя Azure SQL |
-| App Service Plan | `asp-template-dev` | Новый общий план |
+| App Service Plan | `asp-template-dev-linux` | Новый общий план |
 | Blazor Web App | `app-template-ar061026-dev` | Новый, вместо React/Functions |
 | Python Web App | `app-template-python-ar061026-dev` | Новый |
 | Identity Blazor | `id-template-dev` | Совпадает с именем identity в Bicep |
@@ -317,7 +317,7 @@ Virtual network `dx-internal-vnet-dev`, **Enable auto registration: Off**,
 |---|---|
 | Subscription | Личная подписка |
 | Resource group | `rg-template-dev` |
-| Name | `asp-template-dev` |
+| Name | `asp-template-dev-linux` |
 | Operating System | `Linux` |
 | Region | `West US 3` |
 | Pricing tier | `Basic B1` |
@@ -341,7 +341,7 @@ Virtual network `dx-internal-vnet-dev`, **Enable auto registration: Off**,
 | Runtime stack | `.NET 10` |
 | Operating System | `Linux` |
 | Region | `West US 3` |
-| Linux Plan / App Service Plan | **Выбрать существующий `asp-template-dev`** |
+| Linux Plan / App Service Plan | **Выбрать существующий `asp-template-dev-linux`** |
 
 3. Не выбирай создание нового плана.
 4. Во вкладке **Deployment** оставь Continuous deployment выключенным:
@@ -361,9 +361,9 @@ Virtual network `dx-internal-vnet-dev`, **Enable auto registration: Off**,
 | Name | `app-template-python-ar061026-dev` |
 | Runtime stack | `Python 3.13`; если недоступен, `Python 3.12` |
 | Operating System | `Linux` |
-| App Service Plan | **Тот же `asp-template-dev`** |
+| App Service Plan | **Тот же `asp-template-dev-linux`** |
 
-После создания открой **App Service plans → asp-template-dev → Apps**:
+После создания открой **App Service plans → asp-template-dev-linux → Apps**:
 должны отображаться **оба** Web App. Это проверка того, что ты не приобрёл два плана.
 
 В **Overview** каждого Web App скопируй **Default domain**:
@@ -848,9 +848,12 @@ Python `/user` с Graph/OBO: такой функции у нового мини�
 
 Новый Bicep работает на scope группы приложения и не изменяет общие ресурсы.
 Помимо этих ролей, администратор должен назначить deploy identity
-`Microsoft.Network/virtualNetworks/subnets/join/action` на `snet-webapps`
-через ограниченную custom role: шаблон задаёт VNet integration обоих Web App.
-Reader на `rg-shared` обеспечивает чтение, но не join. SQL-пользователи,
+`Microsoft.Network/virtualNetworks/subnets/join/action` и
+`Microsoft.Network/virtualNetworks/subnets/joinViaServiceEndpoint/action`
+на `snet-webapps` через ограниченную custom role: первое нужно для VNet
+integration, второе — для правила входящего доступа к Python через подсеть.
+Обновление уже созданной роли описано в [README → Azure](README.md#azure).
+Reader на `rg-shared` обеспечивает чтение, но не эти действия. SQL-пользователи,
 Key Vault-роли и регистрация входа остаются подготовкой администратора.
 
 Не назначай этому deploy identity:
@@ -914,7 +917,7 @@ Azure login позволяет ему управлять Azure, но не под
 
 | Проверка | Как и что должно получиться |
 |---|---|
-| Один оплачиваемый план | `asp-template-dev → Apps`: оба приложения; экземпляров плана `1` |
+| Один оплачиваемый план | `asp-template-dev-linux → Apps`: оба приложения; экземпляров плана `1` |
 | Вход | Открыть `https://<BLAZOR_HOST>/` в приватном окне; увидеть вход Microsoft, войти `tester@...` |
 | Запись из Blazor | Save with Blazor: запись появляется в обоих списках |
 | Запись через Python | Save with Python: запись появляется в обоих списках |

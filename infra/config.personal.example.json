@@ -16,7 +16,7 @@
   "KEY_VAULT_NAME": "dx-kv-ar061026-dev",
   "ENTRA_CLIENT_ID": "efffdf25-4ee4-4589-8dd1-e626a1078274",
   "ENTRA_SECRET_NAME": "template-dev-entra-client-secret",
-  "APP_SERVICE_PLAN_NAME": "asp-template-dev",
+  "APP_SERVICE_PLAN_NAME": "asp-template-dev-linux",
   "APP_SERVICE_PLAN_SKU": "B1",
   "PYTHON_VERSION": "3.13"
 }
